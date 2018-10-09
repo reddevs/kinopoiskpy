@@ -64,7 +64,3 @@ Get content of person by ID:
     >>> person.get_content('photos')
     >>> len(person.photos) > 10
     True
-
-## Contributors
-
-[Alex Rembish](http://github.com/rembish)
