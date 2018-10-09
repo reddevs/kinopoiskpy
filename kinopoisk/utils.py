@@ -4,6 +4,8 @@ from __future__ import unicode_literals
 import re
 import six
 import unicodedata
+import os
+import random
 
 from builtins import str
 
@@ -21,18 +23,55 @@ HEADERS = {
               '                                        PHPSESSID=b6df76a958983da150476d9cfa0aab18',
 }
 
+class Proxy(object):
+    def __init__(self):
+        import requests
+        self.request = requests.Session()
+        self.file = "ipfile.txt"
+
+    def ip_gain(self):
+        response = self.request.get('http://www.thebigproxylist.com/members/proxy-api.php?output=all&user=list&pass=8a544b2637e7a45d1536e34680e11adf')
+        response.connection.close()
+        content = response.content.decode('windows-1251', 'ignore')        
+        proxies_list = content.split('\n').pop()
+        proxy = random.choice (proxies_list).split(',')
+        f = open(self.file, "w")
+        f.write(proxy[1]+'://'+proxy[0])
+
+
+    def get_ip(self):
+        f = open(self.file, "r")
+        return f.read()
+        
+    def get(self):
+        if not os.path.isfile(self.file):    
+            open(self.file, "w+")
+        ip = self.get_ip()
+        try:
+            if not ip:
+                self.ip_gain()
+                return self.get_ip()
+            else:
+                self.request.get('http://kinopoisk.ru', proxies={'http':ip})
+        except IOError:
+            self.ip_gain()
+            return self.get_ip()
+        else:
+            return self.get_ip()
+
 
 class Manager(object):
     kinopoisk_object = None
     search_url = None
-
+    proxy = Proxy()
     def __init__(self):
         import requests
         self.request = requests.Session()
 
+
     def search(self, query):
         url, params = self.get_url_with_params(query)
-        response = self.request.get(url, params=params, headers=HEADERS)
+        response = self.request.get(url, params=params, headers=HEADERS, proxies={'http':self.proxy.get()})
         response.connection.close()
         content = response.content.decode('windows-1251', 'ignore')
         # request is redirected to main page of object
@@ -156,6 +195,7 @@ class KinopoiskImage(KinopoiskObject):
 
 class KinopoiskPage(object):
     content = None
+    proxy = Proxy()
 
     def __init__(self, source_name, instance, content=None, request=None):
         import requests
@@ -251,7 +291,7 @@ class KinopoiskPage(object):
 
     def get(self):
         if self.instance.id:
-            response = self.request.get(self.instance.get_url(self.source_name), headers=HEADERS)
+            response = self.request.get(self.instance.get_url(self.source_name), headers=HEADERS, proxies={'http':self.proxy.get()})
             response.connection.close()
             self.content = response.content.decode('windows-1251', 'ignore')
             # content = content[content.find('<div style="padding-left: 20px">'):content.find('        </td></tr>')]
@@ -262,23 +302,17 @@ class KinopoiskPage(object):
     def parse(self):
         raise NotImplementedError('You must implement KinopoiskPage.parse() method')
 
-    def split_triple_dots(self, role):
-        role = role.strip().split(' ... ')
-        # if no original title and role starts with '... '
-        if len(role) == 1 and role[0][:3] == '...':
-            role = role[0].strip().split('... ')
-        return role
-
 
 class KinopoiskImagesPage(KinopoiskPage):
     """
     Parser of kinopoisk images page
     """
     field_name = None
+    proxy = Proxy()
 
     def get(self, page=1):
         response = self.request.get(self.instance.get_url(self.source_name, postfix='page/{}/'.format(page)),
-                                    headers=HEADERS)
+                                    headers=HEADERS, proxies={'http':self.proxy.get()})
         response.connection.close()
         content = response.content.decode('windows-1251', 'ignore')
 
@@ -313,7 +347,7 @@ class KinopoiskImagesPage(KinopoiskPage):
             img_id = re.compile(r'/picture/(\d+)/').findall(link['href'])
             picture = KinopoiskImage(int(img_id[0]))
 
-            response = self.request.get(picture.get_url(), headers=HEADERS)
+            response = self.request.get(picture.get_url(), headers=HEADERS, proxies={'http':self.proxy.get()})
             response.connection.close()
             content = response.content.decode('windows-1251', 'ignore')
             img = BeautifulSoup(content, 'html.parser').find('img', attrs={'id': 'image'})
